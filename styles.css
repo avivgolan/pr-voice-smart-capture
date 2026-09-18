@@ -1,0 +1,60 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #102a43;
+  background: #edf3f8;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-width: 320px; }
+
+button, audio { width: 100%; }
+
+button {
+  min-height: 48px;
+  border: 1px solid #52718e;
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  color: #123a63;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { background: #e4eff8; }
+button:focus-visible { outline: 3px solid #e27d31; outline-offset: 3px; }
+button:disabled { cursor: not-allowed; opacity: 0.58; }
+button.primary { border-color: #123a63; color: #fff; background: #123a63; }
+button.primary:hover:not(:disabled) { background: #0b2c4c; }
+
+.app-shell { width: min(100%, 38rem); margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom)); }
+.eyebrow { margin: 0 0 0.4rem; color: #315978; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(1.75rem, 7vw, 2.5rem); line-height: 1.1; }
+h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
+.intro { margin: 0.8rem 0 1.5rem; color: #486581; line-height: 1.5; }
+
+.recorder-card, .message {
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  background: #fff;
+  box-shadow: 0 0.25rem 1rem rgb(16 42 67 / 12%);
+}
+
+.status { min-height: 1.5rem; margin: 0; font-weight: 700; }
+.timer { display: flex; align-items: baseline; justify-content: center; gap: 0.35rem; margin: 1.5rem 0; color: #486581; }
+.timer output { width: auto; color: #102a43; font-size: clamp(2.8rem, 15vw, 4rem); font-variant-numeric: tabular-nums; font-weight: 750; }
+.actions { display: grid; gap: 0.75rem; }
+.review { display: grid; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid #d9e2ec; }
+.details { margin: 0; color: #486581; font-size: 0.9rem; }
+.message { margin-top: 1rem; line-height: 1.45; }
+.message p { margin: 0; }
+.error { border-left: 0.35rem solid #b42318; color: #7a271a; }
+.success { border-left: 0.35rem solid #147a4c; color: #075c36; }
+.privacy-note { margin: 1.25rem 0 0; color: #627d98; font-size: 0.85rem; line-height: 1.45; }
+
+@media (min-width: 32rem) {
+  .actions { grid-template-columns: 1fr 1fr; }
+  #record-button { grid-column: 1 / -1; }
+}

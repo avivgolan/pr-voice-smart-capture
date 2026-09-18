@@ -1,0 +1,10 @@
+{
+  "name": "Voice Smart Capture",
+  "short_name": "Voice Capture",
+  "description": "Record and securely upload a voice note.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf3f8",
+  "theme_color": "#123a63"
+}
