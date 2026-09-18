@@ -185,9 +185,11 @@
     elements.rerecord.disabled = true;
     setStatus("Uploading recording…");
 
-    const filename = `voice-capture-${draftId}.${extensionFor(recordingBlob.type)}`;
+    const mimeType = recordingBlob.type || "audio/webm";
+    const uploadBlob = recordingBlob.type ? recordingBlob : new Blob([recordingBlob], { type: mimeType });
+    const filename = `voice-capture-${draftId}.${extensionFor(mimeType)}`;
     const form = new FormData();
-    form.append("audio", recordingBlob, filename);
+    form.append("audio", uploadBlob, filename);
     form.append("draftId", draftId);
     form.append("token", token);
     form.append("durationSeconds", String(Math.ceil(recordingDuration)));
@@ -200,13 +202,15 @@
         credentials: "omit",
         cache: "no-store",
       });
-      if (!response.ok) throw new Error("Upload was rejected");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "Upload was rejected");
       elements.review.hidden = true;
       elements.success.hidden = false;
       setStatus("Upload received");
       clearRecording();
-    } catch {
-      showError(elements.uploadError, "Upload failed. Check your connection and try again. Your recording is still available to retry.");
+    } catch (error) {
+      const detail = error?.message && error.message !== "Failed to fetch" ? error.message : "Upload failed. Check your connection and try again.";
+      showError(elements.uploadError, `${detail} Your recording is still available to retry.`);
       elements.upload.disabled = false;
       elements.rerecord.disabled = false;
       setStatus("Upload failed");
