@@ -49,6 +49,7 @@
   let recordingExceededLimit = false;
   let pollTimer;
   let notifyWhenDone = false;
+  let waitingForUploadPolls = 0;
 
   const params = new URLSearchParams(window.location.search);
   const draftId = params.get("draftId") || "";
@@ -217,6 +218,15 @@
         showFailed(payload.message);
         return;
       }
+      if (!payload.processingJobId && payload.status === "Processing") {
+        waitingForUploadPolls += 1;
+        if (waitingForUploadPolls >= 4) {
+          showFailed("The recording was not received. Please upload again.");
+          return;
+        }
+      } else {
+        waitingForUploadPolls = 0;
+      }
       setProcessing(payload.message || "Processing your voice note…", progressFor(payload));
     } catch {
       setProcessing("Still working… checking again", Number(elements.processingProgress.value) || 40);
@@ -229,6 +239,7 @@
   }
 
   function startPolling() {
+    waitingForUploadPolls = 0;
     const startedAt = Date.now();
     pollStatus(startedAt);
     pollTimer = window.setInterval(() => pollStatus(startedAt), POLL_MS);
@@ -332,7 +343,9 @@
         cache: "no-store",
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || "Upload was rejected");
+      if (!response.ok || payload.ok === false || !payload.draftId) {
+        throw new Error(payload.message || "Upload was rejected");
+      }
       clearRecording();
       showProcessing();
       setProcessing(payload.message || "Transcribing your voice note", progressFor(payload) || 50);
