@@ -204,6 +204,10 @@
       url.searchParams.set("token", token);
       const response = await fetch(url, { credentials: "omit", cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
+      if (payload.ok === false) {
+        showFailed(payload.message || "Could not load processing status.");
+        return;
+      }
       if (payload.status === "Needs Review" || payload.processingJobId === "done") {
         setProcessing(payload.message || "Ready to review", 100);
         showReady();
