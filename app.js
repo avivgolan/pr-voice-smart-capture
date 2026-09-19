@@ -4,7 +4,7 @@
   const MAX_DURATION_SECONDS = 5 * 60;
   const MAX_BYTES = 25 * 1024 * 1024;
   const UPLOAD_URL = "https://n8n.mediamonster.com/webhook/voice-capture/upload";
-  const STATUS_URL = "https://n8n.mediamonster.com/webhook/voice-capture/status";
+  const STATUS_URL = "https://n8n.mediamonster.com/webhook/voice-note-status";
   const POLL_MS = 2000;
   const POLL_TIMEOUT_MS = 4 * 60 * 1000;
   const MIME_CANDIDATES = [
@@ -48,6 +48,7 @@
   let playbackUrl;
   let recordingExceededLimit = false;
   let pollTimer;
+  let polling = false;
   let notifyWhenDone = false;
   let waitingForUploadPolls = 0;
 
@@ -171,8 +172,13 @@
     }
   }
 
+  function stopPolling() {
+    polling = false;
+    window.clearTimeout(pollTimer);
+  }
+
   function showReady() {
-    window.clearInterval(pollTimer);
+    stopPolling();
     elements.processing.hidden = true;
     elements.success.hidden = false;
     if (draftUrl && elements.openDraft) {
@@ -188,7 +194,7 @@
   }
 
   function showFailed(message) {
-    window.clearInterval(pollTimer);
+    stopPolling();
     elements.processing.hidden = true;
     if (elements.recorderCard) elements.recorderCard.hidden = false;
     showError(elements.uploadError, message || "Voice processing failed. You can record again or open Salesforce.");
@@ -232,17 +238,25 @@
       setProcessing("Still working… checking again", Number(elements.processingProgress.value) || 40);
     }
     if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-      window.clearInterval(pollTimer);
+      stopPolling();
       setProcessing("Still processing. You can wait in Salesforce and open the draft when it is ready.", 90);
       return;
     }
   }
 
   function startPolling() {
+    stopPolling();
     waitingForUploadPolls = 0;
+    polling = true;
     const startedAt = Date.now();
-    pollStatus(startedAt);
-    pollTimer = window.setInterval(() => pollStatus(startedAt), POLL_MS);
+    const tick = async () => {
+      if (!polling) return;
+      await pollStatus(startedAt);
+      if (!polling) return;
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) return;
+      pollTimer = window.setTimeout(tick, POLL_MS);
+    };
+    tick();
   }
 
   async function startRecording() {
