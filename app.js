@@ -24,6 +24,9 @@
     uploadError: document.querySelector("#upload-error"),
     success: document.querySelector("#success-panel"),
     details: document.querySelector("#recording-details"),
+    openDraft: document.querySelector("#open-draft-button"),
+    returnSalesforce: document.querySelector("#return-salesforce"),
+    returnSuccess: document.querySelector("#return-success-button"),
   };
 
   let captureStream;
@@ -39,11 +42,24 @@
   const params = new URLSearchParams(window.location.search);
   const draftId = params.get("draftId") || "";
   const token = params.get("token") || "";
+  const returnUrl = safeSalesforceUrl(params.get("returnUrl"));
+  const draftUrl = safeSalesforceUrl(params.get("draftUrl"));
 
   // Salesforce record IDs are 15 or 18 alphanumeric characters. Tokens are
   // opaque, URL-safe values; accepting a bounded form avoids sending malformed input.
   const validSession = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(draftId)
     && /^[A-Za-z0-9._~-]{16,512}$/.test(token);
+
+  function safeSalesforceUrl(value) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") return "";
+      if (!/(^|\.)(salesforce\.com|lightning\.force\.com)$/i.test(url.hostname)) return "";
+      return url.toString();
+    } catch {
+      return "";
+    }
+  }
 
   function formatDuration(seconds) {
     const wholeSeconds = Math.max(0, Math.min(MAX_DURATION_SECONDS, Math.floor(seconds)));
@@ -206,6 +222,15 @@
       if (!response.ok) throw new Error(payload.message || "Upload was rejected");
       elements.review.hidden = true;
       elements.success.hidden = false;
+      if (draftUrl && elements.openDraft) {
+        elements.openDraft.href = draftUrl;
+        elements.openDraft.hidden = false;
+      }
+      if (returnUrl && elements.returnSuccess) {
+        elements.returnSuccess.href = returnUrl;
+        elements.returnSuccess.hidden = false;
+      }
+      if (elements.returnSalesforce) elements.returnSalesforce.hidden = true;
       setStatus("Upload received");
       clearRecording();
     } catch (error) {
@@ -225,6 +250,10 @@
     }
     setStatus("Ready to record");
     elements.record.disabled = false;
+    if (returnUrl && elements.returnSalesforce) {
+      elements.returnSalesforce.href = returnUrl;
+      elements.returnSalesforce.hidden = false;
+    }
   }
 
   elements.record.addEventListener("click", startRecording);

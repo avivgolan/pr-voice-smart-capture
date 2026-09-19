@@ -53,6 +53,21 @@ h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
 .error { border-left: 0.35rem solid #b42318; color: #7a271a; }
 .success { border-left: 0.35rem solid #147a4c; color: #075c36; }
 .privacy-note { margin: 1.25rem 0 0; color: #627d98; font-size: 0.85rem; line-height: 1.45; }
+a.button {
+  display: block;
+  min-height: 48px;
+  border: 1px solid #52718e;
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  color: #123a63;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+a.button.primary { border-color: #123a63; color: #fff; background: #123a63; }
+.text-link { display: inline-block; margin-top: 1rem; color: #123a63; font-weight: 700; }
 
 @media (min-width: 32rem) {
   .actions { grid-template-columns: 1fr 1fr; }

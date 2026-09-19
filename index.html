@@ -46,9 +46,14 @@
       <p id="upload-error" class="message error" role="alert" hidden></p>
       <section id="success-panel" class="message success" aria-live="polite" hidden>
         <h2>Upload received</h2>
-        <p>Your voice note is being processed. You may close this page.</p>
+        <p>Your voice note is being processed. Open the draft in Salesforce when you are ready to review it.</p>
+        <div class="actions">
+          <a id="open-draft-button" class="button primary" hidden>Open draft in Salesforce</a>
+          <a id="return-success-button" class="button" hidden>Back to Salesforce</a>
+        </div>
       </section>
       <p class="privacy-note">Audio stays on this device until you select “Upload recording.”</p>
+      <p><a id="return-salesforce" class="text-link" hidden>Back to Salesforce</a></p>
     </main>
     <script src="./app.js" defer></script>
   </body>
