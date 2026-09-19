@@ -4,6 +4,9 @@
   const MAX_DURATION_SECONDS = 5 * 60;
   const MAX_BYTES = 25 * 1024 * 1024;
   const UPLOAD_URL = "https://n8n.mediamonster.com/webhook/voice-capture/upload";
+  const STATUS_URL = "https://n8n.mediamonster.com/webhook/voice-capture/status";
+  const POLL_MS = 2000;
+  const POLL_TIMEOUT_MS = 4 * 60 * 1000;
   const MIME_CANDIDATES = [
     "audio/webm;codecs=opus",
     "audio/webm",
@@ -17,11 +20,17 @@
     record: document.querySelector("#record-button"),
     rerecord: document.querySelector("#rerecord-button"),
     review: document.querySelector("#review-panel"),
+    recorderCard: document.querySelector(".recorder-card"),
     sessionError: document.querySelector("#session-error"),
     status: document.querySelector("#recording-status"),
     stop: document.querySelector("#stop-button"),
     upload: document.querySelector("#upload-button"),
     uploadError: document.querySelector("#upload-error"),
+    processing: document.querySelector("#processing-panel"),
+    processingStatus: document.querySelector("#processing-status"),
+    processingProgress: document.querySelector("#processing-progress"),
+    notify: document.querySelector("#notify-button"),
+    leaveProcessing: document.querySelector("#leave-processing"),
     success: document.querySelector("#success-panel"),
     details: document.querySelector("#recording-details"),
     openDraft: document.querySelector("#open-draft-button"),
@@ -38,6 +47,8 @@
   let recorder;
   let playbackUrl;
   let recordingExceededLimit = false;
+  let pollTimer;
+  let notifyWhenDone = false;
 
   const params = new URLSearchParams(window.location.search);
   const draftId = params.get("draftId") || "";
@@ -45,8 +56,6 @@
   const returnUrl = safeSalesforceUrl(params.get("returnUrl"));
   const draftUrl = safeSalesforceUrl(params.get("draftUrl"));
 
-  // Salesforce record IDs are 15 or 18 alphanumeric characters. Tokens are
-  // opaque, URL-safe values; accepting a bounded form avoids sending malformed input.
   const validSession = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(draftId)
     && /^[A-Za-z0-9._~-]{16,512}$/.test(token);
 
@@ -120,6 +129,107 @@
     return MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
   }
 
+  function progressFor(payload) {
+    const status = String(payload?.status || "");
+    const job = String(payload?.processingJobId || "");
+    if (status === "Failed" || job === "failed") return 100;
+    if (status === "Needs Review" || job === "done") return 100;
+    if (job === "extracting") return 75;
+    if (job === "transcribing") return 50;
+    return 25;
+  }
+
+  function setProcessing(message, value) {
+    elements.processingStatus.textContent = message;
+    elements.processingProgress.value = value;
+    setStatus(message);
+  }
+
+  function showProcessing() {
+    elements.review.hidden = true;
+    if (elements.recorderCard) elements.recorderCard.hidden = true;
+    elements.processing.hidden = false;
+    elements.success.hidden = true;
+    if (returnUrl && elements.leaveProcessing) {
+      elements.leaveProcessing.href = returnUrl;
+      elements.leaveProcessing.hidden = false;
+    }
+    if (elements.notify && "Notification" in window) {
+      elements.notify.hidden = Notification.permission === "granted";
+      if (Notification.permission === "granted") notifyWhenDone = true;
+    }
+    if (elements.returnSalesforce) elements.returnSalesforce.hidden = true;
+  }
+
+  function notifyFinished(title, body) {
+    if (!notifyWhenDone || !("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      new Notification(title, { body, tag: `voice-capture-${draftId}` });
+    } catch {
+      // Some mobile browsers grant permission but still block constructed notifications.
+    }
+  }
+
+  function showReady() {
+    window.clearInterval(pollTimer);
+    elements.processing.hidden = true;
+    elements.success.hidden = false;
+    if (draftUrl && elements.openDraft) {
+      elements.openDraft.href = draftUrl;
+      elements.openDraft.hidden = false;
+    }
+    if (returnUrl && elements.returnSuccess) {
+      elements.returnSuccess.href = returnUrl;
+      elements.returnSuccess.hidden = false;
+    }
+    setStatus("Ready to review");
+    notifyFinished("Voice note ready", "Open the draft in Salesforce to review the transcript.");
+  }
+
+  function showFailed(message) {
+    window.clearInterval(pollTimer);
+    elements.processing.hidden = true;
+    if (elements.recorderCard) elements.recorderCard.hidden = false;
+    showError(elements.uploadError, message || "Voice processing failed. You can record again or open Salesforce.");
+    elements.upload.disabled = false;
+    elements.rerecord.disabled = false;
+    setStatus("Could not process");
+    notifyFinished("Voice note failed", message || "Processing failed. You can try again from the capture page.");
+  }
+
+  async function pollStatus(startedAt) {
+    try {
+      const url = new URL(STATUS_URL);
+      url.searchParams.set("draftId", draftId);
+      url.searchParams.set("token", token);
+      const response = await fetch(url, { credentials: "omit", cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (payload.status === "Needs Review" || payload.processingJobId === "done") {
+        setProcessing(payload.message || "Ready to review", 100);
+        showReady();
+        return;
+      }
+      if (payload.status === "Failed" || payload.processingJobId === "failed") {
+        showFailed(payload.message);
+        return;
+      }
+      setProcessing(payload.message || "Processing your voice note…", progressFor(payload));
+    } catch {
+      setProcessing("Still working… checking again", Number(elements.processingProgress.value) || 40);
+    }
+    if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+      window.clearInterval(pollTimer);
+      setProcessing("Still processing. You can wait in Salesforce and open the draft when it is ready.", 90);
+      return;
+    }
+  }
+
+  function startPolling() {
+    const startedAt = Date.now();
+    pollStatus(startedAt);
+    pollTimer = window.setInterval(() => pollStatus(startedAt), POLL_MS);
+  }
+
   async function startRecording() {
     clearError(elements.uploadError);
     clearError(elements.sessionError);
@@ -132,7 +242,6 @@
     }
 
     try {
-      // Permission is requested only from this user-initiated action.
       captureStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = getSupportedMimeType();
       recorder = mimeType ? new MediaRecorder(captureStream, { mimeType }) : new MediaRecorder(captureStream);
@@ -220,19 +329,10 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || "Upload was rejected");
-      elements.review.hidden = true;
-      elements.success.hidden = false;
-      if (draftUrl && elements.openDraft) {
-        elements.openDraft.href = draftUrl;
-        elements.openDraft.hidden = false;
-      }
-      if (returnUrl && elements.returnSuccess) {
-        elements.returnSuccess.href = returnUrl;
-        elements.returnSuccess.hidden = false;
-      }
-      if (elements.returnSalesforce) elements.returnSalesforce.hidden = true;
-      setStatus("Upload received");
       clearRecording();
+      showProcessing();
+      setProcessing(payload.message || "Transcribing your voice note", progressFor(payload) || 50);
+      startPolling();
     } catch (error) {
       const detail = error?.message && error.message !== "Failed to fetch" ? error.message : "Upload failed. Check your connection and try again.";
       showError(elements.uploadError, `${detail} Your recording is still available to retry.`);
@@ -270,6 +370,15 @@
     elements.record.focus();
   });
   elements.upload.addEventListener("click", uploadRecording);
+  elements.notify?.addEventListener("click", async () => {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission();
+    notifyWhenDone = permission === "granted";
+    elements.notify.hidden = notifyWhenDone;
+    if (!notifyWhenDone) {
+      showError(elements.uploadError, "Notifications were not allowed. You can still wait on this page or in Salesforce.");
+    }
+  });
   window.addEventListener("pagehide", () => {
     if (recorder?.state === "recording") recorder.stop();
     stopTracks();

@@ -52,6 +52,24 @@ h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
 .message p { margin: 0; }
 .error { border-left: 0.35rem solid #b42318; color: #7a271a; }
 .success { border-left: 0.35rem solid #147a4c; color: #075c36; }
+.processing { border-left: 0.35rem solid #123a63; color: #123a63; text-align: center; }
+.spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto 1rem;
+  border: 0.28rem solid #d9e2ec;
+  border-top-color: #123a63;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+progress {
+  display: block;
+  width: 100%;
+  height: 0.7rem;
+  margin: 1rem 0;
+  accent-color: #123a63;
+}
 .privacy-note { margin: 1.25rem 0 0; color: #627d98; font-size: 0.85rem; line-height: 1.45; }
 a.button {
   display: block;
