@@ -7,7 +7,7 @@
     <meta name="description" content="Secure voice note capture" />
     <meta http-equiv="Permissions-Policy" content="microphone=(self)" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=2" />
+    <link rel="stylesheet" href="./styles.css?v=3" />
     <title>Voice capture</title>
   </head>
   <body>
@@ -28,15 +28,15 @@
           <span>/ 5:00</span>
         </div>
 
-        <div class="actions">
+        <div class="actions" id="live-actions">
           <button id="record-button" class="primary" type="button" disabled>Start recording</button>
-          <button id="stop-button" type="button" disabled>Stop recording</button>
+          <button id="stop-button" type="button" hidden>Stop recording</button>
         </div>
 
         <section id="review-panel" class="review" aria-label="Review recording" hidden>
           <audio id="audio-playback" controls preload="metadata"></audio>
           <p id="recording-details" class="details"></p>
-          <div class="actions">
+          <div class="actions pair">
             <button id="rerecord-button" type="button">Re-record</button>
             <button id="upload-button" class="primary" type="button">Upload recording</button>
           </div>
@@ -66,6 +66,6 @@
       <p class="privacy-note">Audio stays on this device until you select “Upload recording.”</p>
       <p><a id="return-salesforce" class="text-link" hidden>Back to Salesforce</a></p>
     </main>
-    <script src="./app.js?v=5" defer></script>
+    <script src="./app.js?v=6" defer></script>
   </body>
 </html>

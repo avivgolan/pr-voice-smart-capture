@@ -88,6 +88,7 @@ a.button.primary { border-color: #123a63; color: #fff; background: #123a63; }
 .text-link { display: inline-block; margin-top: 1rem; color: #123a63; font-weight: 700; }
 
 @media (min-width: 32rem) {
-  .actions { grid-template-columns: 1fr 1fr; }
-  #record-button { grid-column: 1 / -1; }
+  .actions.pair { grid-template-columns: 1fr 1fr; }
 }
+
+[hidden] { display: none !important; }

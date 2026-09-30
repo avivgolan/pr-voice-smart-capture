@@ -18,6 +18,7 @@
     elapsed: document.querySelector("#elapsed-time"),
     playback: document.querySelector("#audio-playback"),
     record: document.querySelector("#record-button"),
+    liveActions: document.querySelector("#live-actions"),
     rerecord: document.querySelector("#rerecord-button"),
     review: document.querySelector("#review-panel"),
     recorderCard: document.querySelector(".recorder-card"),
@@ -27,6 +28,7 @@
     upload: document.querySelector("#upload-button"),
     uploadError: document.querySelector("#upload-error"),
     processing: document.querySelector("#processing-panel"),
+    processingTitle: document.querySelector("#processing-title"),
     processingStatus: document.querySelector("#processing-status"),
     processingProgress: document.querySelector("#processing-progress"),
     notify: document.querySelector("#notify-button"),
@@ -51,6 +53,7 @@
   let polling = false;
   let notifyWhenDone = false;
   let waitingForUploadPolls = 0;
+  let uploadTicker;
 
   const params = new URLSearchParams(window.location.search);
   const draftId = params.get("draftId") || "";
@@ -136,9 +139,9 @@
     const job = String(payload?.processingJobId || "");
     if (status === "Failed" || job === "failed") return 100;
     if (status === "Needs Review" || job === "done") return 100;
-    if (job === "extracting") return 75;
-    if (job === "transcribing") return 50;
-    return 25;
+    if (job === "extracting") return 85;
+    if (job === "transcribing") return 65;
+    return 50;
   }
 
   function setProcessing(message, value) {
@@ -147,8 +150,46 @@
     setStatus(message);
   }
 
+  function showReturnLink(visible) {
+    if (!elements.returnSalesforce || !returnUrl) return;
+    elements.returnSalesforce.hidden = !visible;
+  }
+
+  function showIdle() {
+    if (elements.liveActions) elements.liveActions.hidden = false;
+    if (elements.recorderCard) elements.recorderCard.hidden = false;
+    elements.record.hidden = false;
+    elements.record.textContent = "Start recording";
+    elements.record.disabled = !validSession;
+    elements.stop.hidden = true;
+    elements.review.hidden = true;
+    showReturnLink(true);
+  }
+
+  function showRecording() {
+    if (elements.liveActions) elements.liveActions.hidden = false;
+    if (elements.recorderCard) elements.recorderCard.hidden = false;
+    elements.record.hidden = true;
+    elements.stop.hidden = false;
+    elements.stop.disabled = false;
+    elements.review.hidden = true;
+    showReturnLink(true);
+  }
+
+  function showReview() {
+    if (elements.liveActions) elements.liveActions.hidden = true;
+    if (elements.recorderCard) elements.recorderCard.hidden = false;
+    elements.record.hidden = true;
+    elements.stop.hidden = true;
+    elements.review.hidden = false;
+    elements.upload.disabled = false;
+    elements.rerecord.disabled = false;
+    showReturnLink(true);
+  }
+
   function showProcessing() {
     elements.review.hidden = true;
+    if (elements.liveActions) elements.liveActions.hidden = true;
     if (elements.recorderCard) elements.recorderCard.hidden = true;
     elements.processing.hidden = false;
     elements.success.hidden = true;
@@ -160,7 +201,7 @@
       elements.notify.hidden = Notification.permission === "granted";
       if (Notification.permission === "granted") notifyWhenDone = true;
     }
-    if (elements.returnSalesforce) elements.returnSalesforce.hidden = true;
+    showReturnLink(false);
   }
 
   function notifyFinished(title, body) {
@@ -189,6 +230,7 @@
       elements.returnSuccess.href = returnUrl;
       elements.returnSuccess.hidden = false;
     }
+    showReturnLink(false);
     setStatus("Ready to review");
     notifyFinished("Voice note ready", "Open the draft in Salesforce to review the transcript.");
   }
@@ -196,10 +238,8 @@
   function showFailed(message) {
     stopPolling();
     elements.processing.hidden = true;
-    if (elements.recorderCard) elements.recorderCard.hidden = false;
+    showIdle();
     showError(elements.uploadError, message || "Voice processing failed. You can record again or open Salesforce.");
-    elements.upload.disabled = false;
-    elements.rerecord.disabled = false;
     setStatus("Could not process");
     notifyFinished("Voice note failed", message || "Processing failed. You can try again from the capture page.");
   }
@@ -263,12 +303,16 @@
     clearError(elements.uploadError);
     clearError(elements.sessionError);
     clearRecording();
+    showIdle();
 
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       showError(elements.sessionError, "This browser cannot record audio. Open this page in a current mobile browser.");
       setStatus("Recording unavailable");
       return;
     }
+
+    elements.record.disabled = true;
+    setStatus("Starting microphone…");
 
     try {
       captureStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -289,11 +333,11 @@
       recorder.start(1000);
       recordingStartedAt = performance.now();
       elapsedTimer = window.setInterval(updateElapsed, 250);
-      elements.record.disabled = true;
-      elements.stop.disabled = false;
+      showRecording();
       setStatus("Recording in progress");
     } catch (error) {
       stopTracks();
+      showIdle();
       const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
       showError(elements.sessionError, denied
         ? "Microphone access was not granted. Tap Allow when the browser asks for microphone access, then try again."
@@ -306,11 +350,10 @@
     window.clearInterval(elapsedTimer);
     recordingDuration = Math.min(MAX_DURATION_SECONDS, (performance.now() - recordingStartedAt) / 1000);
     stopTracks();
-    elements.stop.disabled = true;
-    elements.record.disabled = false;
 
     if (recordingExceededLimit) {
       chunks = [];
+      showIdle();
       showError(elements.sessionError, "The recording exceeded the 25 MB limit. Please record a shorter note.");
       setStatus("Recording discarded");
       return;
@@ -319,6 +362,7 @@
     const mimeType = recorder?.mimeType || chunks[0]?.type || "audio/webm";
     recordingBlob = new Blob(chunks, { type: mimeType });
     if (!recordingBlob.size) {
+      showIdle();
       showError(elements.sessionError, "No audio was captured. Please try again.");
       setStatus("Recording unavailable");
       return;
@@ -328,8 +372,54 @@
     elements.playback.src = playbackUrl;
     elements.elapsed.value = formatDuration(recordingDuration);
     elements.details.textContent = `${formatDuration(recordingDuration)} recorded · ${(recordingBlob.size / 1024 / 1024).toFixed(1)} MB`;
-    elements.review.hidden = false;
+    showReview();
     setStatus("Recording ready for review");
+  }
+
+  function stopUploadTicker() {
+    window.clearInterval(uploadTicker);
+    uploadTicker = undefined;
+  }
+
+  function startUploadTicker() {
+    stopUploadTicker();
+    uploadTicker = window.setInterval(() => {
+      const current = Number(elements.processingProgress.value) || 0;
+      if (current >= 40) return;
+      elements.processingProgress.value = current + 3;
+    }, 280);
+  }
+
+  function noteUploadProgress(ratio) {
+    const fromBytes = Math.max(8, Math.min(45, Math.round(ratio * 45)));
+    const current = Number(elements.processingProgress.value) || 0;
+    if (fromBytes > current) elements.processingProgress.value = fromBytes;
+  }
+
+  function postAudio(form) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", UPLOAD_URL);
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable && event.total > 0) noteUploadProgress(event.loaded / event.total);
+      });
+      xhr.addEventListener("load", () => {
+        let payload = {};
+        try {
+          payload = JSON.parse(xhr.responseText || "{}");
+        } catch {
+          payload = {};
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && payload.ok !== false && payload.draftId) {
+          resolve(payload);
+          return;
+        }
+        reject(new Error(payload.message || "Upload was rejected"));
+      });
+      xhr.addEventListener("error", () => reject(new Error("Failed to fetch")));
+      xhr.addEventListener("timeout", () => reject(new Error("Failed to fetch")));
+      xhr.send(form);
+    });
   }
 
   async function uploadRecording() {
@@ -337,7 +427,10 @@
     clearError(elements.uploadError);
     elements.upload.disabled = true;
     elements.rerecord.disabled = true;
-    setStatus("Uploading recording…");
+    showProcessing();
+    if (elements.processingTitle) elements.processingTitle.textContent = "Uploading your voice note";
+    setProcessing("Uploading recording…", 8);
+    startUploadTicker();
 
     const mimeType = recordingBlob.type || "audio/webm";
     const uploadBlob = recordingBlob.type ? recordingBlob : new Blob([recordingBlob], { type: mimeType });
@@ -350,25 +443,19 @@
     form.append("filename", filename);
 
     try {
-      const response = await fetch(UPLOAD_URL, {
-        method: "POST",
-        body: form,
-        credentials: "omit",
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.ok === false || !payload.draftId) {
-        throw new Error(payload.message || "Upload was rejected");
-      }
+      const payload = await postAudio(form);
+      stopUploadTicker();
       clearRecording();
+      if (elements.processingTitle) elements.processingTitle.textContent = "Processing your voice note";
       showProcessing();
-      setProcessing(payload.message || "Transcribing your voice note", progressFor(payload) || 50);
+      setProcessing(payload.message || "Transcribing your voice note", Math.max(50, progressFor(payload)));
       startPolling();
     } catch (error) {
+      stopUploadTicker();
+      elements.processing.hidden = true;
+      showReview();
       const detail = error?.message && error.message !== "Failed to fetch" ? error.message : "Upload failed. Check your connection and try again.";
       showError(elements.uploadError, `${detail} Your recording is still available to retry.`);
-      elements.upload.disabled = false;
-      elements.rerecord.disabled = false;
       setStatus("Upload failed");
     }
   }
@@ -379,12 +466,9 @@
       setStatus("Capture link unavailable");
       return;
     }
+    if (returnUrl && elements.returnSalesforce) elements.returnSalesforce.href = returnUrl;
     setStatus("Ready to record");
-    elements.record.disabled = false;
-    if (returnUrl && elements.returnSalesforce) {
-      elements.returnSalesforce.href = returnUrl;
-      elements.returnSalesforce.hidden = false;
-    }
+    showIdle();
   }
 
   elements.record.addEventListener("click", startRecording);
@@ -396,9 +480,7 @@
   });
   elements.rerecord.addEventListener("click", () => {
     clearError(elements.sessionError);
-    clearRecording();
-    setStatus("Ready to record");
-    elements.record.focus();
+    startRecording();
   });
   elements.upload.addEventListener("click", uploadRecording);
   elements.notify?.addEventListener("click", async () => {
