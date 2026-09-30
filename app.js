@@ -17,6 +17,9 @@
   const elements = {
     elapsed: document.querySelector("#elapsed-time"),
     playback: document.querySelector("#audio-playback"),
+    playButton: document.querySelector("#play-button"),
+    seek: document.querySelector("#seek-bar"),
+    playClock: document.querySelector("#play-clock"),
     record: document.querySelector("#record-button"),
     liveActions: document.querySelector("#live-actions"),
     rerecord: document.querySelector("#rerecord-button"),
@@ -48,6 +51,9 @@
   let recordingBlob;
   let recorder;
   let playbackUrl;
+  let userSeeked = false;
+  let correctedStart = false;
+  let preparingPlayback = false;
   let recordingExceededLimit = false;
   let pollTimer;
   let polling = false;
@@ -115,6 +121,9 @@
     playbackUrl = undefined;
     elements.playback.removeAttribute("src");
     elements.playback.load();
+    userSeeked = false;
+    correctedStart = false;
+    resetPlayer(0);
     elements.review.hidden = true;
     elements.details.textContent = "";
     elements.elapsed.value = "0:00";
@@ -368,12 +377,158 @@
       return;
     }
 
-    playbackUrl = URL.createObjectURL(recordingBlob);
-    elements.playback.src = playbackUrl;
     elements.elapsed.value = formatDuration(recordingDuration);
     elements.details.textContent = `${formatDuration(recordingDuration)} recorded · ${(recordingBlob.size / 1024 / 1024).toFixed(1)} MB`;
     showReview();
     setStatus("Recording ready for review");
+    attachPlayback(recordingBlob);
+  }
+
+  function patchWebmDuration(data, durationMs) {
+    const limit = Math.min(data.length, 65536);
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    for (let i = 0; i < limit - 11; i += 1) {
+      if (data[i] === 0x1f && data[i + 1] === 0x43 && data[i + 2] === 0xb6 && data[i + 3] === 0x75) break;
+      if (data[i] !== 0x44 || data[i + 1] !== 0x89) continue;
+      if (data[i + 2] === 0x88) {
+        view.setFloat64(i + 3, durationMs, false);
+        return true;
+      }
+      if (data[i + 2] === 0x84) {
+        view.setFloat32(i + 3, durationMs, false);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function knownDuration() {
+    return recordingDuration || 0;
+  }
+
+  function setPlayLabel(playing) {
+    if (!elements.playButton) return;
+    elements.playButton.textContent = playing ? "Pause" : "Play";
+    elements.playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+
+  function resetPlayer(length) {
+    userSeeked = false;
+    correctedStart = false;
+    if (elements.seek) {
+      elements.seek.value = "0";
+      elements.seek.disabled = length <= 0;
+    }
+    if (elements.playButton) {
+      elements.playButton.disabled = length <= 0;
+      setPlayLabel(false);
+    }
+    if (elements.playClock) {
+      elements.playClock.textContent = `0:00 / ${formatDuration(length)}`;
+    }
+  }
+
+  function updatePlayhead() {
+    if (preparingPlayback) return;
+    const length = knownDuration();
+    let current = elements.playback.currentTime || 0;
+    if (!correctedStart && !userSeeked && length > 1 && current > length + 0.25) {
+      correctedStart = true;
+      try { elements.playback.currentTime = 0; } catch { /* Seek when the browser allows it. */ }
+      current = 0;
+    }
+    if (length && current > length) current = length;
+    if (elements.seek) {
+      elements.seek.value = length ? String(Math.round((current / length) * 1000)) : "0";
+    }
+    if (elements.playClock) {
+      elements.playClock.textContent = `${formatDuration(current)} / ${formatDuration(length)}`;
+    }
+  }
+
+  function preparePlayback(audio) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        try { audio.currentTime = 0; } catch { /* The file may not be seekable yet. */ }
+        resolve();
+      };
+      const timer = window.setTimeout(done, 1200);
+      const inspect = () => {
+        const duration = audio.duration;
+        if (Number.isFinite(duration) && duration > 0 && duration < 1e5) {
+          window.clearTimeout(timer);
+          done();
+          return;
+        }
+        const onUpdate = () => {
+          audio.removeEventListener("timeupdate", onUpdate);
+          window.clearTimeout(timer);
+          done();
+        };
+        audio.addEventListener("timeupdate", onUpdate);
+        try {
+          audio.currentTime = 1e101;
+        } catch {
+          window.clearTimeout(timer);
+          done();
+        }
+      };
+      if (audio.readyState >= 1) inspect();
+      else {
+        audio.addEventListener("loadedmetadata", inspect, { once: true });
+        audio.addEventListener("error", () => {
+          window.clearTimeout(timer);
+          done();
+        }, { once: true });
+      }
+    });
+  }
+
+  async function attachPlayback(blob) {
+    preparingPlayback = true;
+    resetPlayer(knownDuration());
+    if (elements.playButton) elements.playButton.disabled = true;
+    let playable = blob;
+    if (String(blob.type || "").includes("webm")) {
+      try {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        if (patchWebmDuration(bytes, Math.round(recordingDuration * 1000))) {
+          playable = new Blob([bytes], { type: blob.type });
+          recordingBlob = playable;
+        }
+      } catch {
+        playable = blob;
+      }
+    }
+    try {
+      if (playbackUrl) URL.revokeObjectURL(playbackUrl);
+      playbackUrl = URL.createObjectURL(playable);
+      elements.playback.src = playbackUrl;
+      await preparePlayback(elements.playback);
+    } finally {
+      preparingPlayback = false;
+      resetPlayer(knownDuration());
+    }
+  }
+
+  async function togglePlayback() {
+    const audio = elements.playback;
+    if (!audio.paused && !audio.ended) {
+      audio.pause();
+      return;
+    }
+    const length = knownDuration();
+    if (audio.ended || (length && audio.currentTime > length + 0.25)) {
+      try { audio.currentTime = 0; } catch { /* Seek when the browser allows it. */ }
+    }
+    try {
+      await audio.play();
+    } catch {
+      setPlayLabel(false);
+    }
   }
 
   function stopUploadTicker() {
@@ -471,6 +626,25 @@
     showIdle();
   }
 
+  elements.playButton?.addEventListener("click", togglePlayback);
+  elements.seek?.addEventListener("input", () => {
+    userSeeked = true;
+    const length = knownDuration();
+    const next = (Number(elements.seek.value) / 1000) * length;
+    if (elements.playClock) elements.playClock.textContent = `${formatDuration(next)} / ${formatDuration(length)}`;
+    try { elements.playback.currentTime = next; } catch { /* Seek when the browser allows it. */ }
+  });
+  elements.playback.addEventListener("play", () => setPlayLabel(true));
+  elements.playback.addEventListener("pause", () => setPlayLabel(false));
+  elements.playback.addEventListener("ended", () => {
+    setPlayLabel(false);
+    if (elements.seek) elements.seek.value = "1000";
+    if (elements.playClock) elements.playClock.textContent = `${formatDuration(knownDuration())} / ${formatDuration(knownDuration())}`;
+  });
+  elements.playback.addEventListener("timeupdate", () => {
+    if (document.activeElement === elements.seek) return;
+    updatePlayhead();
+  });
   elements.record.addEventListener("click", startRecording);
   elements.stop.addEventListener("click", () => {
     if (recorder?.state === "recording") {
