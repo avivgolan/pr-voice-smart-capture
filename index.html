@@ -7,7 +7,7 @@
     <meta name="description" content="Secure voice note capture" />
     <meta http-equiv="Permissions-Policy" content="microphone=(self)" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
     <title>Voice capture</title>
   </head>
   <body>
@@ -57,7 +57,7 @@
         <h2 id="processing-title">Processing your voice note</h2>
         <p id="processing-status">Uploading recording…</p>
         <progress id="processing-progress" max="100" value="15"></progress>
-        <p class="details">Stay on this page for live updates, or go back to Salesforce and wait there.</p>
+        <p class="details above-actions">Stay on this page for live updates, or go back to Salesforce and wait there.</p>
         <div class="actions">
           <button id="notify-button" type="button" hidden>Notify me when ready</button>
           <a id="leave-processing" class="button" hidden>Wait in Salesforce</a>
@@ -74,6 +74,6 @@
       <p id="privacy-note" class="privacy-note">Audio stays on this device until you select “Upload recording.”</p>
       <p><a id="return-salesforce" class="text-link" hidden>Back to Salesforce</a></p>
     </main>
-    <script src="./app.js?v=9" defer></script>
+    <script src="./app.js?v=10" defer></script>
   </body>
 </html>

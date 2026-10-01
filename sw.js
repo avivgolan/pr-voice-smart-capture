@@ -1,4 +1,4 @@
-const CACHE_NAME = "voice-smart-capture-v6";
+const CACHE_NAME = "voice-smart-capture-v7";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

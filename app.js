@@ -1,6 +1,7 @@
 (() => {
   "use strict";
 
+  const SHOW_NOTIFY_BUTTON = false;
   const MAX_DURATION_SECONDS = 5 * 60;
   const MAX_BYTES = 25 * 1024 * 1024;
   const UPLOAD_URL = "https://n8n.mediamonster.com/webhook/voice-capture/upload";
@@ -228,7 +229,8 @@
       elements.leaveProcessing.hidden = false;
     }
     if (elements.notify && "Notification" in window) {
-      elements.notify.hidden = Notification.permission === "granted";
+      // Set SHOW_NOTIFY_BUTTON to true to bring the button back.
+      elements.notify.hidden = !SHOW_NOTIFY_BUTTON || Notification.permission === "granted";
       if (Notification.permission === "granted") notifyWhenDone = true;
     }
     showReturnLink(false);
