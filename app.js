@@ -173,14 +173,13 @@
     event.preventDefault();
     const url = event.currentTarget.getAttribute("href");
     if (!url) return;
-    const opener = window.opener;
-    if (opener && !opener.closed) {
-      try { opener.focus(); } catch { /* The original Salesforce tab can still be focused. */ }
+    const destination = window.open(url, "_blank");
+    if (destination) {
+      try { destination.focus(); } catch { /* The new Salesforce tab is already in front. */ }
+      window.close();
+      return;
     }
-    window.close();
-    window.setTimeout(() => {
-      if (document.visibilityState !== "hidden") window.location.assign(url);
-    }, 200);
+    window.location.assign(url);
   }
 
   function showIdle() {
