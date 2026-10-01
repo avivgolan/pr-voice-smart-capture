@@ -7,7 +7,7 @@
     <meta name="description" content="Secure voice note capture" />
     <meta http-equiv="Permissions-Policy" content="microphone=(self)" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
     <title>Voice capture</title>
   </head>
   <body>
@@ -43,7 +43,7 @@
             <p id="play-clock" class="play-clock">0:00 / 0:00</p>
           </div>
           <audio id="audio-playback" class="playback-engine" preload="auto" playsinline></audio>
-          <p id="recording-details" class="details"></p>
+          <p id="recording-details" class="details above-actions"></p>
           <div class="actions pair">
             <button id="rerecord-button" type="button">Re-record</button>
             <button id="upload-button" class="primary" type="button">Upload recording</button>
@@ -65,15 +65,15 @@
       </section>
       <section id="success-panel" class="message success" aria-live="polite" hidden>
         <h2>Ready to review</h2>
-        <p>Your voice note was transcribed and the draft is ready in Salesforce.</p>
+        <p class="above-actions">Your voice note was transcribed and the draft is ready in Salesforce.</p>
         <div class="actions">
           <a id="open-draft-button" class="button primary" hidden>Open draft in Salesforce</a>
           <a id="return-success-button" class="button" hidden>Back to Salesforce</a>
         </div>
       </section>
-      <p class="privacy-note">Audio stays on this device until you select “Upload recording.”</p>
+      <p id="privacy-note" class="privacy-note">Audio stays on this device until you select “Upload recording.”</p>
       <p><a id="return-salesforce" class="text-link" hidden>Back to Salesforce</a></p>
     </main>
-    <script src="./app.js?v=7" defer></script>
+    <script src="./app.js?v=8" defer></script>
   </body>
 </html>

@@ -57,6 +57,8 @@ h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
 .details { margin: 0; color: #486581; font-size: 0.9rem; }
 .message { margin-top: 1rem; line-height: 1.45; }
 .message p { margin: 0; }
+.above-actions,
+.message p.above-actions { margin-bottom: 1.25rem; }
 .error { border-left: 0.35rem solid #b42318; color: #7a271a; }
 .success { border-left: 0.35rem solid #147a4c; color: #075c36; }
 .processing { border-left: 0.35rem solid #123a63; color: #123a63; text-align: center; }

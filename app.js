@@ -41,6 +41,7 @@
     openDraft: document.querySelector("#open-draft-button"),
     returnSalesforce: document.querySelector("#return-salesforce"),
     returnSuccess: document.querySelector("#return-success-button"),
+    privacyNote: document.querySelector("#privacy-note"),
   };
 
   let captureStream;
@@ -147,7 +148,7 @@
     const status = String(payload?.status || "");
     const job = String(payload?.processingJobId || "");
     if (status === "Failed" || job === "failed") return 100;
-    if (status === "Needs Review" || job === "done") return 100;
+    if (job === "done") return 100;
     if (job === "extracting") return 85;
     if (job === "transcribing") return 65;
     return 50;
@@ -164,6 +165,24 @@
     elements.returnSalesforce.hidden = !visible;
   }
 
+  function showPrivacyNote(visible) {
+    if (elements.privacyNote) elements.privacyNote.hidden = !visible;
+  }
+
+  function leaveRecorder(event) {
+    event.preventDefault();
+    const url = event.currentTarget.getAttribute("href");
+    if (!url) return;
+    const opener = window.opener;
+    if (opener && !opener.closed) {
+      try { opener.focus(); } catch { /* The original Salesforce tab can still be focused. */ }
+    }
+    window.close();
+    window.setTimeout(() => {
+      if (document.visibilityState !== "hidden") window.location.assign(url);
+    }, 200);
+  }
+
   function showIdle() {
     if (elements.liveActions) elements.liveActions.hidden = false;
     if (elements.recorderCard) elements.recorderCard.hidden = false;
@@ -173,6 +192,7 @@
     elements.stop.hidden = true;
     elements.review.hidden = true;
     showReturnLink(true);
+    showPrivacyNote(true);
   }
 
   function showRecording() {
@@ -183,6 +203,7 @@
     elements.stop.disabled = false;
     elements.review.hidden = true;
     showReturnLink(true);
+    showPrivacyNote(true);
   }
 
   function showReview() {
@@ -194,6 +215,7 @@
     elements.upload.disabled = false;
     elements.rerecord.disabled = false;
     showReturnLink(true);
+    showPrivacyNote(true);
   }
 
   function showProcessing() {
@@ -211,6 +233,7 @@
       if (Notification.permission === "granted") notifyWhenDone = true;
     }
     showReturnLink(false);
+    showPrivacyNote(false);
   }
 
   function notifyFinished(title, body) {
@@ -240,6 +263,7 @@
       elements.returnSuccess.hidden = false;
     }
     showReturnLink(false);
+    showPrivacyNote(false);
     setStatus("Ready to review");
     notifyFinished("Voice note ready", "Open the draft in Salesforce to review the transcript.");
   }
@@ -264,7 +288,7 @@
         showFailed(payload.message || "Could not load processing status.");
         return;
       }
-      if (payload.status === "Needs Review" || payload.processingJobId === "done") {
+      if (payload.processingJobId === "done") {
         setProcessing(payload.message || "Ready to review", 100);
         showReady();
         return;
@@ -273,7 +297,7 @@
         showFailed(payload.message);
         return;
       }
-      if (!payload.processingJobId && payload.status === "Processing") {
+      if (!payload.processingJobId && (payload.status === "Processing" || payload.status === "Needs Review")) {
         waitingForUploadPolls += 1;
         if (waitingForUploadPolls >= 4) {
           showFailed("The recording was not received. Please upload again.");
@@ -626,6 +650,9 @@
     showIdle();
   }
 
+  elements.returnSalesforce?.addEventListener("click", leaveRecorder);
+  elements.returnSuccess?.addEventListener("click", leaveRecorder);
+  elements.leaveProcessing?.addEventListener("click", leaveRecorder);
   elements.playButton?.addEventListener("click", togglePlayback);
   elements.seek?.addEventListener("input", () => {
     userSeeked = true;
