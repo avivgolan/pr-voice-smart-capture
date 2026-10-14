@@ -66,11 +66,20 @@
   const params = new URLSearchParams(window.location.search);
   const draftId = params.get("draftId") || "";
   const token = params.get("token") || "";
-  const returnUrl = safeSalesforceUrl(params.get("returnUrl"));
-  const draftUrl = safeSalesforceUrl(params.get("draftUrl"));
-
   const validSession = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(draftId)
     && /^[A-Za-z0-9._~-]{16,512}$/.test(token);
+
+  // On a phone the recorder runs in Safari or Chrome, where Salesforce falls back to
+  // Classic and drops record links. Hand the user back to the Salesforce app instead.
+  const userAgent = navigator.userAgent || "";
+  const onPhone = /iPhone|iPad|iPod|Android/i.test(userAgent)
+    || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
+  const returnUrl = onPhone && params.get("returnUrl")
+    ? "salesforce1://"
+    : safeSalesforceUrl(params.get("returnUrl"));
+  const draftUrl = onPhone && validSession
+    ? `salesforce1://sObject/${draftId}/view`
+    : safeSalesforceUrl(params.get("draftUrl"));
 
   function safeSalesforceUrl(value) {
     try {
@@ -174,6 +183,10 @@
     event.preventDefault();
     const url = event.currentTarget.getAttribute("href");
     if (!url) return;
+    if (url.startsWith("salesforce1:")) {
+      window.location.assign(url);
+      return;
+    }
     const destination = window.open(url, "_blank");
     if (destination) {
       try { destination.focus(); } catch { /* The new Salesforce tab is already in front. */ }
@@ -654,6 +667,7 @@
   elements.returnSalesforce?.addEventListener("click", leaveRecorder);
   elements.returnSuccess?.addEventListener("click", leaveRecorder);
   elements.leaveProcessing?.addEventListener("click", leaveRecorder);
+  elements.openDraft?.addEventListener("click", leaveRecorder);
   elements.playButton?.addEventListener("click", togglePlayback);
   elements.seek?.addEventListener("input", () => {
     userSeeked = true;
