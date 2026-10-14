@@ -69,17 +69,17 @@
   const validSession = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(draftId)
     && /^[A-Za-z0-9._~-]{16,512}$/.test(token);
 
-  // On a phone the recorder runs in Safari or Chrome, where Salesforce falls back to
-  // Classic and drops record links. Hand the user back to the Salesforce app instead.
+  // On a phone the recorder runs in the Salesforce app's in-app browser, where any
+  // Salesforce web link falls back to Classic. Close the recorder instead: the Smart
+  // Capture screen underneath already shows Open draft once the draft is ready.
+  const CLOSE_RECORDER = "#close";
   const userAgent = navigator.userAgent || "";
   const onPhone = /iPhone|iPad|iPod|Android/i.test(userAgent)
     || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
   const returnUrl = onPhone && params.get("returnUrl")
-    ? "salesforce1://"
+    ? CLOSE_RECORDER
     : safeSalesforceUrl(params.get("returnUrl"));
-  const draftUrl = onPhone && validSession
-    ? `salesforce1://sObject/${draftId}/view`
-    : safeSalesforceUrl(params.get("draftUrl"));
+  const draftUrl = onPhone ? "" : safeSalesforceUrl(params.get("draftUrl"));
 
   function safeSalesforceUrl(value) {
     try {
@@ -183,8 +183,9 @@
     event.preventDefault();
     const url = event.currentTarget.getAttribute("href");
     if (!url) return;
-    if (url.startsWith("salesforce1:")) {
-      window.location.assign(url);
+    if (url === CLOSE_RECORDER) {
+      window.close();
+      setStatus("Tap Done at the top to go back to Salesforce, then tap Open draft.");
       return;
     }
     const destination = window.open(url, "_blank");
@@ -278,7 +279,7 @@
     }
     showReturnLink(false);
     showPrivacyNote(false);
-    setStatus("Ready to review");
+    setStatus(onPhone ? "Ready. Go back to Salesforce and tap Open draft." : "Ready to review");
     notifyFinished("Voice note ready", "Open the draft in Salesforce to review the transcript.");
   }
 
